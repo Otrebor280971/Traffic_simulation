@@ -40,7 +40,7 @@ function initialize_model(extent = (25, 10))
         else
             add_agent!(SVector{2, Float64}(px, py), model; vel=SVector{2, Float64}(rand(Uniform(0.2, 0.7)), 0.0))
         end
-        py += 2.0
+        py += 0.8
     end
     model
 end
