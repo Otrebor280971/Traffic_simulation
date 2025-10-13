@@ -1,11 +1,9 @@
 import { useState, useRef } from 'react';
-import { SliderField } from '@aws-amplify/ui-react';
 
 export default function App() {
   let [location, setLocation] = useState("");
   let [cars, setCars] = useState([]);
   let [simSpeed, setSimSpeed] = useState(10);
-  let [nCars, setNCars] = useState(5);
   const running = useRef(null);
 
   let setup = () => {

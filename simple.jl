@@ -34,7 +34,7 @@ function initialize_model(extent = (25, 10))
 
     first = true
     py = 1.0
-    for px in randperm(25)[1:5]
+    for px in randperm(25)[1:10]
         if first
             add_agent!(SVector{2, Float64}(px, py), model; vel=SVector{2, Float64}(1.0, 0.0))
         else
