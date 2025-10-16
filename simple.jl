@@ -5,11 +5,20 @@ using StaticArrays: SVector
     accelerating::Bool = true
 end
 
+function car_ahead(agent, model)
+    for neighbor in nearby_agents(agent, model, 1.0)
+        if neighbor.pos[1] > agent.pos[1]
+            return neighbor
+        end
+    end
+    nothing
+end
+
 accelerate(agent) = agent.vel[1] + 0.05
 decelerate(agent) = agent.vel[1] - 0.1
 
 function  agent_step!(agent, model)
-    new_velocity = agent.accelerating ? accelerate(agent) : decelerate(agent)
+    new_velocity = isnothing(car_ahead(agent, model)) ? accelerate(agent) : decelerate(agent)
 
     if new_velocity >= 1.0
         new_velocity = 1.0
@@ -17,9 +26,6 @@ function  agent_step!(agent, model)
     elseif new_velocity <= 0.0
         new_velocity = 0.0
         agent.accelerating = true
-    end
-    if agent.id == 1
-        println(agent.pos)
     end
     
     agent.vel = (new_velocity, 0.0)
