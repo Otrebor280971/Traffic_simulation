@@ -11,28 +11,43 @@ route("/simulations", method = POST) do
     id = string(uuid1())
     instances[id] = model
 
-    # return traffic lights only
+    # return traffic lights and cars
     lights = [Dict(
         "id" => light.id,
         "pos" => collect(light.pos),
         "color" => Int(light.color),
         "timer" => light.timer
-    ) for light in allagents(model)]
-    json(Dict("Location" => "/simulations/$id", "lights" => lights))
+    ) for light in allagents(model) if light.role == Light]
+
+    cars = [Dict(
+        "id" => car.id,
+        "pos" => collect(car.pos),
+        "vel" => collect(car.vel)
+    ) for car in allagents(model) if car.role == Vehicle]
+
+    json(Dict("Location" => "/simulations/$id", "lights" => lights, "cars" => cars))
 end
 
 route("/simulations/:id") do
     println(payload(:id))
     model = instances[payload(:id)]
-    run!(model, 1)
-    # return traffic lights only
+    # step model deterministically: lights then cars
+    step_model!(model)
+
     lights = [Dict(
         "id" => light.id,
         "pos" => collect(light.pos),
         "color" => Int(light.color),
         "timer" => light.timer
-    ) for light in allagents(model)]
-    json(Dict("lights" => lights))
+    ) for light in allagents(model) if light.role == Light]
+
+    cars = [Dict(
+        "id" => car.id,
+        "pos" => collect(car.pos),
+        "vel" => collect(car.vel)
+    ) for car in allagents(model) if car.role == Vehicle]
+
+    json(Dict("lights" => lights, "cars" => cars))
 end
 
 

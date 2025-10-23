@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 export default function App() {
   let [location, setLocation] = useState("");
   let [lights, setLights] = useState([]);
+  let [cars, setCars] = useState([]);
   let [simSpeed, setSimSpeed] = useState(10);
   const running = useRef(null);
 
@@ -14,7 +15,8 @@ export default function App() {
     }).then(resp => resp.json())
     .then(data => {
       setLocation(data["Location"]);
-      setLights(data["lights"]);
+      setLights(data["lights"] || []);
+      setCars(data["cars"] || []);
     });
   }
 
@@ -23,7 +25,8 @@ export default function App() {
       fetch("http://localhost:8000" + location)
       .then(res => res.json())
       .then(data => {
-        setLights(data["lights"]);
+        setLights(data["lights"] || []);
+        setCars(data["cars"] || []);
       });
     }, 1000 / simSpeed);
   };
@@ -47,6 +50,12 @@ export default function App() {
           const cx = light.pos[0] * 80;
           const cy = light.pos[1] * 50;
           return <circle key={light.id} cx={cx} cy={cy} r={10} fill={col} stroke="black" />;
+        })}
+        {cars.map(car => {
+          // car.pos mapped to svg coordinates, center the image
+          const x = car.pos[0] * 80 - 16;
+          const y = 5 * 50 - 16;
+          return <image key={car.id} id={car.id} x={x} y={y} width={32} href="./racing-car.png" />;
         })}
       </svg>
     </div>
