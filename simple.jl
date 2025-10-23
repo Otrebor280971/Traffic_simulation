@@ -35,18 +35,27 @@ function agent_step!(agent::TrafficAgent, model)
         end
     else
         # CARRR
+
+        # define movement axis and important ligts
+        local axis, cross_axis
+        if agent.direction == Horizontal
+            axis = 1 # x
+            cross_axis = 2 #y
+        else
+            axis = 2 #y
+            cross_axis = 1 #x
+        end
+
         all_agents = collect(allagents(model))
-        lights = filter(a -> a.role == Light && a.direction == Horizontal, all_agents)
+        lights = filter(a -> a.role == Light && a.direction == agent.direction, all_agents)
         
         # only consider lights that are ahead AND in the same lane (within 1.5 units in y)
-        ahead_lights = filter(l -> l.pos[1] > agent.pos[1] && abs(l.pos[2] - agent.pos[2]) < 1.5, lights)
+        ahead_lights = filter(l -> l.pos[axis] > agent.pos[axis] && abs(l.pos[cross_axis] - agent.pos[cross_axis]) < 1.5, lights)
         
-        if isempty(ahead_lights)
-            nearest = nothing
-            min_dist = Inf
-        else
-            nearest = nothing
-            min_dist = Inf
+        nearest = nothing
+        min_dist = Inf
+        
+        if !isempty(ahead_lights)
             for l in ahead_lights
                 d = sqrt((agent.pos[1] - l.pos[1])^2 + (agent.pos[2] - l.pos[2])^2)
                 if d < min_dist
@@ -56,26 +65,55 @@ function agent_step!(agent::TrafficAgent, model)
             end
         end
 
-        stopping_distance = 1.5
-        if nearest !== nothing && (nearest.color == Yellow || nearest.color == Red) && min_dist <= stopping_distance
-            # are we past the light?????????
-            if agent.pos[1] < nearest.pos[1] - 0.2
-                agent.vel = SVector{2,Float64}(0.0, 0.0)
-                return
+        #find closest car ahead and in same lane
+        vehicles = filter(a -> a.role == Vehicle && a.id != agent.id && a.direction == agent.direction, all_agents)
+        ahead_vehicles = filter(v -> v.pos[axis] > agent.pos[axis] && abs(v.pos[cross_axis] - agent.pos[cross_axis]) < 1.5, vehicles)
+
+        nearest_vehicle = nothing
+        min_dist_vehicle = Inf
+        if !isempty(ahead_vehicles)
+            for v in ahead_vehicles
+                d = sqrt((agent.pos[1] - v.pos[1])^2 + (agent.pos[2] - v.pos[2])^2)
+                if d < min_dist_vehicle
+                    min_dist_vehicle = d
+                    nearest_vehicle = v
+                end
             end
         end
 
-        new_velocity = agent.accelerating ? accelerate(agent) : decelerate(agent)
+        light_stop = 1.5
+        car_safety = 1.0
 
-        if new_velocity >= 1.0
-            new_velocity = 1.0
+        if( nearest !== nothing && (nearest.color == Yellow || nearest.color == Red) && min_dist <= light_stop && agent.pos[axis] <  nearest.pos[axis] - 0.2 ) || (nearest_vehicle !== nothing && min_dist_vehicle <= car_safety)
+            agent.vel = SVector{2, Float64}(0.0, 0.0)
+            agent.accelerating = true
+            return
+        end
+
+        current_velocity_component = agent.vel[axis]
+        max_speed = 1.0
+
+        if current_velocity_component >= max_speed
             agent.accelerating = false
-        elseif new_velocity <= 0.0
-            new_velocity = 0.0
+        elseif current_velocity_component <= 0.0
             agent.accelerating = true
         end
 
-        agent.vel = SVector{2,Float64}(new_velocity, 0.0)
+        new_velocity = agent.accelerating ? (current_velocity_component + 0.05) : (current_velocity_component - 0.1)
+
+        if new_velocity >= max_speed
+            new_velocity = max_speed
+        elseif new_velocity <= 0.0
+            new_velocity = 0.0
+        end
+
+        #update speed vector based on direction
+        if agent.direction == Horizontal
+            agent.vel = SVector{2,Float64}(new_velocity, 0.0)
+        else
+            agent.vel = SVector{2, Float64}(0.0, new_velocity)
+        end
+
         move_agent!(agent, model, 0.4)
     end
 end
@@ -94,33 +132,37 @@ function step_model!(model)
     end
 end
 
-function initialize_model(extent = (10, 10))
+function initialize_model(extent = (10, 10); n_cars_per_street = 3)
     space2d = ContinuousSpace(extent; spacing = 0.5, periodic = false)
     rng = MersenneTwister()
 
     model = ABM(TrafficAgent, space2d; rng = rng, scheduler = Schedulers.Randomly())
 
+    #Horizontal light
     add_agent!(SVector{2, Float64}(4.0, 6.0), model;
                role = Light, color = Green, timer = 10, direction = Horizontal,
                vel = SVector{2, Float64}(0.0, 0.0), accelerating = false)
+    #Vertical light
     add_agent!(SVector{2, Float64}(6.0, 4.0), model;
-               role = Light, color = Green, timer = 10, direction = Vertical,
+               role = Light, color = Red, timer = 14, direction = Vertical,
                vel = SVector{2, Float64}(0.0, 0.0), accelerating = false)
 
-    function sample_x(rng)
-        for _ in 1:100
-            x = rand(rng) * 2.0
-            if x < 3.0
-                return x
-            end
-        end
-        return 1.0
+    #Add n cars in Horizontal
+    for _ in 1:n_cars_per_street
+        start_x = rand(rng) *3.5
+        start_vel = rand(rng) * 0.8
+        add_agent!(SVector{2, Float64}(start_x, 6.0), model;
+                    role = Vehicle, color = Green, timer = 0, direction = Horizontal,
+                    vel = SVector{2, Float64}(start_vel, 0.0), accelerating = true)
     end
 
-    cx = sample_x(rng)
-    add_agent!(SVector{2, Float64}(cx, 5.0), model;
-               role = Vehicle, color = Green, timer = 0, direction = Horizontal,
-               vel = SVector{2, Float64}(0.5, 0.0), accelerating = true)
-
+    #Add n cars in Vertical
+    for _ in 1:n_cars_per_street
+        start_y = rand(rng) * 3.5
+        start_vel = rand(rng) * 0.8
+         add_agent!(SVector{2, Float64}(6.0, start_y), model;
+                   role = Vehicle, color = Green, timer = 0, direction = Vertical,
+                   vel = SVector{2, Float64}(0.0, start_vel), accelerating = true)
+    end
     return model
 end

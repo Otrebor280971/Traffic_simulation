@@ -7,7 +7,10 @@ instances = Dict()
 route("/simulations", method = POST) do
     payload = jsonpayload()
 
-    model = initialize_model()
+    #Fetch number of cars
+    n_cars = get(payload, "n_cars", 3)
+
+    model = initialize_model(; n_cars_per_street = n_cars)
     id = string(uuid1())
     instances[id] = model
 
@@ -22,7 +25,8 @@ route("/simulations", method = POST) do
     cars = [Dict(
         "id" => car.id,
         "pos" => collect(car.pos),
-        "vel" => collect(car.vel)
+        "vel" => collect(car.vel),
+        "direction" => string(car.direction)
     ) for car in allagents(model) if car.role == Vehicle]
 
     json(Dict("Location" => "/simulations/$id", "lights" => lights, "cars" => cars))
@@ -41,13 +45,26 @@ route("/simulations/:id") do
         "timer" => light.timer
     ) for light in allagents(model) if light.role == Light]
 
+    all_cars = [car for car in allagents(model) if car.role == Vehicle]
     cars = [Dict(
         "id" => car.id,
         "pos" => collect(car.pos),
-        "vel" => collect(car.vel)
-    ) for car in allagents(model) if car.role == Vehicle]
+        "vel" => collect(car.vel),
+        "direction" => string(car.direction)
+    ) for car in all_cars]
 
-    json(Dict("lights" => lights, "cars" => cars))
+    total_speed = 0.0
+    if !isempty(all_cars)
+        for v in all_cars
+            speed_component = (v.direction == Horizontal) ? abs(v.vel[1]) : abs(v.vel[2])
+            total_speed += speed_component
+        end
+        avg_speed = total_speed / length(all_cars)
+    else
+        avg_speed = 0.0
+    end
+
+    json(Dict("lights" => lights, "cars" => cars, "avg_speed" => avg_speed))
 end
 
 
