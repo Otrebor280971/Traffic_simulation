@@ -1,5 +1,11 @@
 using Agents, Random
 using StaticArrays: SVector
+@enum LightColor Green Yellow Red
+
+@agent struct TrafficLight(ContinuousAgent{2,Float64})
+    color::LightColor
+    timer::Int
+end
 
 @agent struct Car(ContinuousAgent{2,Float64})
     accelerating::Bool = true
@@ -8,7 +14,7 @@ end
 accelerate(agent) = agent.vel[1] + 0.05
 decelerate(agent) = agent.vel[1] - 0.1
 
-function  agent_step!(agent, model)
+function agent_step!(agent::Car, model)
     new_velocity = agent.accelerating ? accelerate(agent) : decelerate(agent)
 
     if new_velocity >= 1.0
@@ -26,21 +32,29 @@ function  agent_step!(agent, model)
     move_agent!(agent, model, 0.4)
 end
 
-function initialize_model(extent = (25, 10))
-    space2d = ContinuousSpace(extent; spacing = 0.5, periodic = true)
+function agent_step!(agent::TrafficLight, model)
+    agent.timer -= 1
+    if agent.timer <= 0
+        if agent.color == Green
+            agent.color = Yellow
+            agent.timer = 4
+        elseif agent.color == Yellow
+            agent.color = Red
+            agent.timer = 14
+        elseif agent.color == Red
+            agent.color = Green
+            agent.timer = 10
+        end
+    end
+end
+
+function initialize_model(extent = (10, 10))
+    space2d = ContinuousSpace(extent; spacing = 0.5, periodic = false)
     rng = Random.MersenneTwister()
 
-    model = StandardABM(Car, space2d; rng, agent_step!, scheduler = Schedulers.Randomly())
+    model = StandardABM(TrafficLight, space2d; rng, agent_step!, scheduler = Schedulers.Randomly())
 
-    first = true
-    py = 1.0
-    for px in randperm(25)[1:10]
-        if first
-            add_agent!(SVector{2, Float64}(px, py), model; vel=SVector{2, Float64}(1.0, 0.0))
-        else
-            add_agent!(SVector{2, Float64}(px, py), model; vel=SVector{2, Float64}(rand(Uniform(0.2, 0.7)), 0.0))
-        end
-        py += 0.8
-    end
+    add_agent!(SVector{2, Float64}(4.0, 6.0), model; color=Green, timer=10, vel=SVector{2, Float64}(0.0, 0.0))
+    add_agent!(SVector{2, Float64}(6.0, 4.0), model; color=Green, timer=10, vel=SVector{2, Float64}(0.0, 0.0))
     model
 end
